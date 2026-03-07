@@ -1,18 +1,1 @@
-<!DOCTYPE html>
-<html>
-<head>
-<title>About Waste Management</title>
-</head>
-<body style="font-family:Arial;text-align:center">
 
-<h1>About the Project</h1>
-
-<p>
-This project uses a CNN model to classify waste images into
-Wet, Dry, and E-Waste categories.
-</p>
-
-<a href="index.html">Go Back</a>
-
-</body>
-</html>
