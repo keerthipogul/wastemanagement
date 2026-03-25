@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<body style="text-align:center; font-family:Arial;">
+
+    <h2>Results</h2>
+
+    {% for item in results %}
+        <div style="margin-bottom:30px;">
+            <h3>{{item.result}} ({{item.confidence}}%)</h3>
+            <img src="{{item.image}}" width="250">
+        </div>
+    {% endfor %}
+
+    <br>
+    <a href="/">Go Back</a>
+
+</body>
+</html>

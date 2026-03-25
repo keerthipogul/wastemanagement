@@ -1,8 +1,6 @@
 import tensorflow as tf
 from tensorflow.keras import layers, models
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
-import numpy as np
-from tensorflow.keras.preprocessing import image
 
 # Data preprocessing
 train_datagen = ImageDataGenerator(
@@ -23,7 +21,6 @@ test_data = train_datagen.flow_from_directory(
     target_size=(128,128),
     batch_size=32,
     class_mode="categorical",
-
     subset="validation"
 )
 
@@ -40,33 +37,24 @@ model.add(layers.Conv2D(128,(3,3),activation='relu'))
 model.add(layers.MaxPooling2D(2,2))
 
 model.add(layers.Flatten())
-
 model.add(layers.Dense(128,activation='relu'))
-
 model.add(layers.Dense(3,activation='softmax'))
 
-# Compile model
+# Compile
 model.compile(
     optimizer='adam',
     loss='categorical_crossentropy',
     metrics=['accuracy']
 )
 
-# Train model
+# Train
 model.fit(
     train_data,
     epochs=10,
     validation_data=test_data
 )
 
-# Predict new image
-img = image.load_img("test.jpg", target_size=(128,128))
+# Save model
+model.save("model.h5")
 
-img_array = image.img_to_array(img)/255.0
-img_array = np.expand_dims(img_array, axis=0)
-
-prediction = model.predict(img_array)
-
-classes = ["wet","dry","e-waste"]
-
-print("Predicted Waste Type:", classes[np.argmax(prediction)])
+print("Model trained and saved successfully ✅")

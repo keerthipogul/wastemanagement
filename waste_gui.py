@@ -1,119 +1,109 @@
-# import mysql.connector
-# from datetime import date
-# import tkinter as tk
-# from tkinter import messagebox
-
-# # MySQL connection
-# conn = mysql.connector.connect(
-#     host="localhost",
-#     user="root",
-#     password="root",
-#     database="waste_management"
-# )
-# cursor = conn.cursor()
-
-# root = tk.Tk()
-# root.title("Waste Management System")
-# root.geometry("400x300")
-
-# tk.Label(root, text="Waste Management System",
-#          font=("Arial", 16, "bold")).pack(pady=10)
-
-# waste_var = tk.StringVar()
-# waste_var.set("Select Waste Type")
-
-# tk.Label(root, text="Waste Type").pack()
-# tk.OptionMenu(root, waste_var, "wet", "dry", "e-waste").pack(pady=5)
-
-# tk.Label(root, text="Quantity").pack()
-# quantity_entry = tk.Entry(root)
-# quantity_entry.pack(pady=5)
-# def submit_data():
-#     waste = waste_var.get()
-#     qty = quantity_entry.get()
-#     today = date.today()
-
-#     # ❌ Invalid case 1: waste type not selected
-#     if waste == "Select Waste Type":
-#         messagebox.showerror("Error", "Please select waste type")
-#         return
-
-#     # ❌ Invalid case 2: quantity empty
-#     if qty == "":
-#         messagebox.showerror("Error", "Quantity cannot be empty")
-#         return
-
-#     # ❌ Invalid case 3: quantity not a number
-#     try:
-#         qty = int(qty)
-#     except:
-#         messagebox.showerror("Error", "Quantity must be a number")
-#         return
-
-#     # ❌ Invalid case 4: quantity zero or negative
-#     if qty <= 0:
-#         messagebox.showerror("Error", "Quantity must be greater than zero")
-#         return
-
-#     # ✅ Valid case → insert into database
-#     try:
-#         query = "INSERT INTO wastedata (date, waste_type, quantity) VALUES (%s, %s, %s)"
-#         values = (today, waste, qty)
-#         cursor.execute(query, values)
-#         conn.commit()
-
-#         messagebox.showinfo("Success", "Waste data stored successfully")
-#         quantity_entry.delete(0, tk.END)
-
-#     except Exception as e:
-#         messagebox.showerror("Database Error", str(e))
-
-
-# tk.Button(root, text="Submit", command=submit_data,
-#           bg="green", fg="white").pack(pady=10)
-
-# root.mainloop()
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import filedialog, messagebox
+import cv2
+import numpy as np
+from tensorflow.keras.models import load_model
+import mysql.connector
+from datetime import date
 
+# Model initially empty
+model = None
+
+# Classes (must match training)
+classes = ["dry", "ewaste", "wet"]
+
+# GUI Window
 root = tk.Tk()
 root.title("Waste Management System")
-root.geometry("400x300")
+root.geometry("400x350")
 
-title = tk.Label(root, text="Waste Management System",
-                 font=("Arial", 18, "bold"))
-title.pack(pady=20)
+tk.Label(root, text="Waste Management System",
+         font=("Arial", 16, "bold")).pack(pady=10)
 
-# Waste Type
-tk.Label(root, text="Waste Type", font=("Arial", 11)).pack()
+result_label = tk.Label(root, text="", font=("Arial", 12))
+result_label.pack(pady=10)
 
-waste_var = tk.StringVar()
-waste_var.set("wet")
+# Classify function
+def classify_image(path):
+    global model
 
-dropdown = tk.OptionMenu(root, waste_var, "wet", "dry", "e-waste")
-dropdown.pack(pady=5)
+    if model is None:
+        model = load_model("model.h5")
 
-# Quantity
-tk.Label(root, text="Quantity", font=("Arial", 11)).pack()
+    img = cv2.imread(path)
 
-quantity_entry = tk.Entry(root)
-quantity_entry.pack(pady=5)
-
-def submit():
-    waste = waste_var.get()
-    qty = quantity_entry.get()
-
-    if qty == "":
-        messagebox.showerror("Error", "Enter quantity")
+    if img is None:
+        result_label.config(text="Image not found ❌")
         return
 
-    messagebox.showinfo("Success", f"{waste} waste with quantity {qty} submitted")
+    img = cv2.resize(img, (128,128))
+    img = img / 255.0
+    img = np.reshape(img, [1, 128, 128, 3])
 
-submit_btn = tk.Button(root, text="Submit",
-                       bg="green", fg="white",
-                       font=("Arial", 10, "bold"),
-                       command=submit)
+    prediction = model.predict(img)
 
-submit_btn.pack(pady=15)
+    confidence = np.max(prediction) * 100
+    result = classes[np.argmax(prediction)]
+
+    if confidence < 40:
+        result_label.config(text="Unknown Waste ❌")
+    else:
+        result_label.config(text=f"{result} ({confidence:.2f}%)")
+
+        success = save_to_db(result)
+
+        if success:
+            messagebox.showinfo("Success", f"{result} saved successfully ✅")
+
+result_label.config(text="")   # 🔥 reset screen
+
+# Save to DB
+def save_to_db(waste):
+    try:
+        conn = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            password="root",
+            database="waste_management"
+        )
+
+        cursor = conn.cursor()
+
+        cursor.execute(
+            "SELECT quantity FROM wastedata WHERE date=%s AND waste_type=%s",
+            (date.today(), waste)
+        )
+        result = cursor.fetchone()
+
+        if result:
+            new_quantity = result[0] + 1
+            cursor.execute(
+                "UPDATE wastedata SET quantity=%s WHERE date=%s AND waste_type=%s",
+                (new_quantity, date.today(), waste)
+            )
+        else:
+            cursor.execute(
+                "INSERT INTO wastedata (date, waste_type, quantity) VALUES (%s, %s, %s)",
+                (date.today(), waste, 1)
+            )
+
+        conn.commit()
+        conn.close()
+
+        return True
+
+    except Exception as e:
+        messagebox.showerror("DB Error", str(e))
+        return False
+
+# Upload button
+def upload_image():
+    file_path = filedialog.askopenfilename()
+    if file_path:
+        classify_image(file_path)
+
+tk.Button(root, text="Upload Image",
+          command=upload_image,
+          bg="blue", fg="white").pack(pady=20)
 
 root.mainloop()
